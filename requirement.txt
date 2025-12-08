@@ -1,0 +1,11 @@
+langchain
+langchain-openai
+langchain-community
+openai
+qdrant-client
+python-dotenv
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+dateparser
