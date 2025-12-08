@@ -1,0 +1,62 @@
+# Virtual environment
+venv/
+.venv/
+ENV/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables (IMPORTANT)
+.env
+.env.local
+.env.*.local
+
+# Secret config files
+*.key
+*.pem
+
+# VS Code settings
+.vscode/
+
+# IDE / Editor files
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Build files
+build/
+dist/
+*.egg-info/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# LangChain and vector DB files
+*.db
+*.sqlite
+*.pickle
+*.pkl
+
+# Node / Frontend (if any)
+node_modules/
+npm-debug.log
+
+# Temporary files
+tmp/
+temp/
+
+# Backup files
+*.bak
+*.old
