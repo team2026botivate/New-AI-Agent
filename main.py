@@ -11,8 +11,9 @@ from langchain_core.messages import AIMessage, HumanMessage
 from agent import agent
 
 class ChatRequest(BaseModel):
-    question: str 
-    chat_history: List[Dict[str, str]] # e.g., [{"type": "human", "content": "hi"}]
+    question: str
+    chat_history: List[Dict[str, str]]
+    company_id: str | None = None   # <-- ADD THIS
 
 
 app = FastAPI(title="Botivate Rag Agent API")
@@ -53,7 +54,8 @@ async def chat_with_agent(request: ChatRequest):
         
     initial_state = {
         "question": request.question,
-        "chat_history": history_messages
+        "chat_history": history_messages,
+        "company_id": request.company_id   # <-- ADD THIS
     }
 
     final_state = agent.invoke(initial_state)

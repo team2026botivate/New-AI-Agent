@@ -6,6 +6,13 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
 from dotenv import load_dotenv
 
+from supabase import create_client
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
 load_dotenv()
 
 
@@ -54,14 +61,34 @@ class AgentState(TypedDict):
     chat_history: List[BaseMessage]
     answer: str
 
+def fetch_company_tasks(company_id: str):
+    if not company_id:
+        return []
+
+    try:
+        response = supabase.table("Copy_FMS").select("*").eq("posted_by", company_id).execute()
+        return response.data
+    except Exception as e:
+        print("DB Error:", e)
+        return []
 
 def handle_conversation_node(state: AgentState):
     print("Botivate Short Mode Active")
 
     question = state["question"]
+    company_id = state.get("company_id")
+
+    # Fetch tasks for this company only
+    company_tasks = fetch_company_tasks(company_id)
+
+    # Build a readable context summary for the AI
+    task_context = "Company Task Data:\n"
+    for row in company_tasks[:20]:  # limit to avoid overload
+        task_context += f"- Task {row.get('task_no')} | {row.get('system_name')} | {row.get('description_of_work')} | Status: {row.get('status')}\n"
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", BOTIVATE_TROUBLESHOOT_PROMPT),
+        ("system", f"Only use this company's data:\n{task_context}"),
         MessagesPlaceholder("chat_history"),
         ("human", "{q}")
     ])
@@ -78,13 +105,8 @@ def handle_conversation_node(state: AgentState):
             "chat_history": state["chat_history"]
         })
 
-        
-
         answer = result.content
 
-        print("AI Answer:", answer)
-
-        # Update chat history correctly
         state["chat_history"].append(HumanMessage(content=question))
         state["chat_history"].append(AIMessage(content=answer))
 

@@ -6,6 +6,6 @@ qdrant-client
 python-dotenv
 fastapi
 uvicorn
-sqlalchemy
 pydantic
-dateparser
+gspread
+google-auth
