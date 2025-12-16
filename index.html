@@ -431,12 +431,15 @@ async function sendMessage() {
     const chatHistory = buildChatHistory();
 
     try {
+        const companyName = localStorage.getItem("company_name") || null;
+
         const response = await fetch(API_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 question: input,
-                chat_history: chatHistory
+                chat_history: chatHistory,
+                company_name: localStorage.getItem("company_name")
             })
         });
 

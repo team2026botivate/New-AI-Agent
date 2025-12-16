@@ -9,3 +9,4 @@ uvicorn
 pydantic
 gspread
 google-auth
+supabase

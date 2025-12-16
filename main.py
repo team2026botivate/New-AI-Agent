@@ -1,63 +1,84 @@
-import os
-import asyncio
-
 from fastapi import FastAPI, Response
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict
-from langchain_core.messages import AIMessage, HumanMessage
+from typing import Optional
 
 from agent import agent
 
+
+# ============================================================
+# REQUEST MODEL
+# ============================================================
+
 class ChatRequest(BaseModel):
     question: str
-    chat_history: List[Dict[str, str]]
-    company_id: str | None = None   # <-- ADD THIS
+    company_name: Optional[str] = None
 
 
-app = FastAPI(title="Botivate Rag Agent API")
+# ============================================================
+# FASTAPI APP
+# ============================================================
+
+app = FastAPI(title="Botivate RAG Agent API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # tighten in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
 )
 
+
+# ============================================================
+# ROUTES
+# ============================================================
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     """Serve the main HTML page."""
-    with open("index.html", "r", encoding="utf-8") as f:
-        html_content = f.read()
-    return HTMLResponse(content=html_content, status_code=200)
+    try:
+        with open("index.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read(), status_code=200)
+    except FileNotFoundError:
+        return HTMLResponse(
+            content="<h3>index.html not found</h3>",
+            status_code=404
+        )
+
 
 @app.head("/")
 async def status_check():
     return Response(status_code=200)
 
+
 @app.post("/chat")
 async def chat_with_agent(request: ChatRequest):
     """
-    The main endpoint to interact with the agent.
-    It accepts a question and the conversation history.
+    Main chat endpoint
     """
 
-    history_messages = []
-
-    for msg in request.chat_history:
-        if msg.get("type") == "human":
-            history_messages.append(HumanMessage(content=msg.get("content")))
-        elif msg.get("type") == "ai":
-            history_messages.append(AIMessage(content=msg.get("content")))
-        
     initial_state = {
         "question": request.question,
-        "chat_history": history_messages,
-        "company_id": request.company_id   # <-- ADD THIS
+        "company_name": request.company_name,
+        "answer": ""
     }
 
-    final_state = agent.invoke(initial_state)
+    try:
+        final_state = agent.invoke(initial_state)
+        return {
+            "answer": final_state.get(
+                "answer",
+                "Sorry, I couldn't generate a response."
+            )
+        }
 
-    return {"answer": final_state.get('answer', "Sorry, I encountered an error.")}
+    except Exception as e:
+        print("❌ Agent Error:", e)
+        return {
+            "answer": (
+                "Sorry, something went wrong while processing your request. "
+                "Please try again."
+            )
+        }
