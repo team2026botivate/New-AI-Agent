@@ -1,5 +1,3 @@
-# agent.py (FINAL)
-
 import os, json
 from typing import TypedDict
 from dotenv import load_dotenv
@@ -105,10 +103,20 @@ ADDITIONAL BEHAVIOR RULES :
 
 # ---------------- CLASSIFIER ----------------
 def classify_query(question: str, company: str | None) -> str:
+    q = question.lower()
+
+    # 🟢 Detect coding / formula / syntax / error / technical queries
+    technical_keywords = [
+        "formula", "syntax", "code", "coding", "program", "python", "java",
+        "javascript", "sql", "vlookup", "excel", "error", "exception",
+        "bug", "issue", "api", "function", "class", "loop", "print"
+    ]
+
+    if any(word in q for word in technical_keywords):
+        return "TROUBLESHOOT"
+
     if not company:
         return "CHAT"
-
-    q = question.lower()
 
     # strict task intent detection
     task_intent = any(word in q for word in [
@@ -129,59 +137,6 @@ def classify_query(question: str, company: str | None) -> str:
     ])
 
     return (prompt | llm).invoke({"q": question}).content.strip().upper()
-
-# def fetch_task_data(question: str, company: str):
-#     q = question.lower()
-#     date_filter = extract_date_filters(question)
-
-#     query = (
-#         supabase
-#         .table("Copy_FMS")
-#         .select("task_no, description_of_work, planned3", count="exact")
-#         .ilike("party_name", f"%{company}%")
-#     )
-
-#     # --- Date filtering ---
-#     if date_filter:
-#         _, start, end = date_filter
-#         query = (
-#             query
-#             .gte("planned3", f"{start} 00:00:00")
-#             .lte("planned3", f"{end} 23:59:59")
-#         )
-
-#     # --- Status ---
-#     if "completed" in q:
-#         query = query.not_.is_("actual3", None)
-#         status = "completed"
-#     elif "pending" in q:
-#         query = query.is_("actual3", None)
-#         status = "pending"
-#     else:
-#         status = "total"
-
-#     # --- Count ---
-#     if any(k in q for k in ["how many", "count", "total"]):
-#         res = query.execute()
-#         return {
-#             "type": "count",
-#             "status": status,
-#             "value": res.count or 0
-#         }
-
-#     # --- List ---
-#     limit = 5
-#     match = re.search(r"top\s+(\d+)", q)
-#     if match:
-#         limit = int(match.group(1))
-
-#     data = query.limit(limit).execute().data or []
-#     return {
-#         "type": "details",
-#         "status": status,
-#         "value": data,
-#         "limit": limit
-#     }
 
 #           DATE RANGE HELPER FUNCTION
 def get_date_range_sql(q_lower: str, use_actual: bool = False) -> str | None:
@@ -332,6 +287,45 @@ Rules:
 - Keep responses short, friendly, and helpful
 """
 
+RESTRICTED_CHAT_RESPONSE = (
+    "Sorry, I can’t help with this type of question. "
+    "I can assist you with troubleshooting or database-related queries. "
+    "Please let me know how I can help."
+)
+
+def classify_chat_scope_llm(question: str) -> str:
+    """
+    Returns ONLY one word:
+    - ALLOW → greetings, casual talk, platform-related chat
+    - RESTRICT → personal info, real-world facts, weather, identity, time, location, etc.
+    """
+
+    prompt = ChatPromptTemplate.from_messages([
+        (
+            "system",
+            """
+You are a strict classifier.
+
+Decide whether the user's message should be answered
+by a limited enterprise chatbot that ONLY supports:
+- greetings
+- casual conversation
+- system-related guidance
+
+The chatbot DOES NOT support:
+- personal identity questions
+- user-specific private information
+- weather, date, time
+
+Reply with ONLY ONE WORD:
+ALLOW or RESTRICT
+"""
+        ),
+        ("human", "{q}")
+    ])
+
+    return (prompt | llm).invoke({"q": question}).content.strip().upper()
+
 # ---------------- MAIN NODE ----------------
 def handle_conversation(state: AgentState):
     q = state["question"]
@@ -433,17 +427,29 @@ def handle_conversation(state: AgentState):
             ("system", BOTIVATE_TROUBLESHOOT_PROMPT),
             ("human", "{q}")
         ])
-        return {"answer": (prompt | llm).invoke({"q": q}).content}
+        return {
+            "answer": (prompt | llm).invoke({"q": q}).content
+        }
 
-        # ---------- CHAT ----------
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", FRIENDLY_CHAT_PROMPT),
-        ("human", "{q}")
-    ])
+    # ---------- CHAT ----------
+    if intent == "CHAT":
+        chat_scope = classify_chat_scope_llm(q)
 
-    return {
-        "answer": (prompt | llm).invoke({"q": q}).content
-    }
+        if chat_scope == "RESTRICT":
+            return {
+                "answer": RESTRICTED_CHAT_RESPONSE
+            }
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", FRIENDLY_CHAT_PROMPT),
+            ("human", "{q}")
+        ])
+
+        return {
+            "answer": (prompt | llm).invoke({"q": q}).content
+        }
+
+    return {"answer": "I'm sorry, I couldn't process your request."}
 
 # ---------------- GRAPH ----------------
 graph = StateGraph(AgentState)
