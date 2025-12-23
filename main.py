@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Response
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
-
+from typing import List, Dict, Optional
 from agent import agent
 
 
@@ -14,7 +14,7 @@ from agent import agent
 class ChatRequest(BaseModel):
     question: str
     company_name: Optional[str] = None
-
+    history: List[Dict[str, str]] = Field(default_factory=list)
 
 # ============================================================
 # FASTAPI APP
@@ -62,7 +62,8 @@ async def chat_with_agent(request: ChatRequest):
     initial_state = {
         "question": request.question,
         "company_name": request.company_name,
-        "answer": ""
+        "answer": "",
+        "history": request.history or []   # 👈 frontend se aayega
     }
 
     try:
